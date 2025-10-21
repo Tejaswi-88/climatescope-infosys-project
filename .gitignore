@@ -1,0 +1,36 @@
+# Ignore Python virtual environment
+venv/
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Streamlit cache & config
+.streamlit/
+*.db
+*.sqlite
+
+# Ignore local data / sample apps
+app_samples/
+src/
+reports/
+streamlit/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.bak
+
+# Optional: ignore all CSVs in data folder if not needed in repo
+# data/

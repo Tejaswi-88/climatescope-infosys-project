@@ -1,0 +1,275 @@
+# ======================================================
+# 📈 2_Weather_Insights.py
+# Weather Dashboard — Exploratory & Analytical Insights
+# ======================================================
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
+import requests
+
+# ======================================================
+# PAGE CONFIG
+# ======================================================
+st.set_page_config(
+    page_title="Weather Insights & Exploratory Analytics",
+    layout="wide",
+    page_icon="📊"
+)
+
+# ======================================================
+# LOAD DATA
+# ======================================================
+@st.cache_data
+def load_data():
+    df = pd.read_csv("../data/processed/processed_weather_data.csv", parse_dates=["last_updated"])
+    df.columns = [c.strip() for c in df.columns]
+    return df
+
+df = load_data()
+
+# ======================================================
+# COUNTRY DETECTION (Optional)
+# ======================================================
+def get_user_country():
+    try:
+        ip_info = requests.get('https://ipinfo.io').json()
+        return ip_info.get('country', None)
+    except:
+        return None
+
+user_country = get_user_country()
+unique_countries = sorted(df['country'].unique())
+default_countries = [user_country] if user_country in unique_countries else ["India"]
+
+# ======================================================
+# THEME STYLES
+# ======================================================
+themes = {
+    "🌞 Light": {
+        "background": "#F5F5F5",
+        "text": "#070606",
+        "plotly_template": "plotly_white",
+        "color_scale": px.colors.sequential.Plasma,
+    },
+    "🌙 Dark": {
+        "background": "#121212",
+        "text": "#E0E0E0",
+        "plotly_template": "plotly_dark",
+        "color_scale": px.colors.sequential.Viridis,
+    }
+}
+
+# ======================================================
+# SIDEBAR FILTERS
+# ======================================================
+with st.sidebar:
+    st.header("🎛️ Dashboard Controls")
+    selected_theme = st.selectbox("Select Color Theme", list(themes.keys()), index=1)
+    theme = themes[selected_theme]
+
+    selected_countries = st.multiselect(
+        "🌍 Select Countries",
+        options=unique_countries,
+        default=default_countries
+    )
+
+    # Date range filter
+    min_date = df['last_updated'].min().date()
+    max_date = df['last_updated'].max().date()
+    date_range = st.date_input(
+        "📅 Select Date Range",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date
+    )
+
+# ======================================================
+# GLOBAL STYLING
+# ======================================================
+st.markdown(
+    f"""
+    <style>
+        .stApp {{
+            background-color: {theme['background']};
+            color: {theme['text']};
+        }}
+        h1, h2, h3, h4, h5, h6, p, label {{
+            color: {theme['text']} !important;
+        }}
+        section[data-testid="stSidebar"] {{
+            background-color: {theme['background']};
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ======================================================
+# FILTER DATA
+# ======================================================
+df_filtered = df[
+    (df['country'].isin(selected_countries)) &
+    (df['last_updated'].dt.date >= date_range[0]) &
+    (df['last_updated'].dt.date <= date_range[1])
+]
+
+if df_filtered.empty:
+    st.error("No data available for the selected filters.")
+    st.stop()
+
+# ======================================================
+# PAGE HEADER
+# ======================================================
+st.title("📊 Weather Insights & Exploratory Analytics")
+st.caption("Explore temporal trends, distributions, correlations, and extreme events across countries.")
+
+# ======================================================
+# 1. TEMPORAL TRENDS
+# ======================================================
+st.subheader("📆 Temporal Trends: Temperature Over Time")
+
+temp_fig = px.line(
+    df_filtered,
+    x='last_updated',
+    y='temperature_celsius',
+    color='country',
+    title='Temperature Trends',
+    template=theme['plotly_template'],
+    hover_data={'temperature_celsius': ':.2f'}
+)
+temp_fig.update_layout(
+    paper_bgcolor=theme['background'],
+    plot_bgcolor=theme['background'],
+    font_color=theme['text']
+)
+st.plotly_chart(temp_fig, use_container_width=True)
+
+# ======================================================
+# 2. COUNTRY COMPARISONS
+# ======================================================
+st.subheader("🏳️ Country-Wise Averages Comparison")
+
+country_avg = df_filtered.groupby('country').agg({
+    'temperature_celsius': 'mean',
+    'humidity': 'mean',
+    'wind_mph': 'mean',
+    'air_quality_us-epa-index': 'mean'
+}).reset_index()
+
+comp_fig = px.bar(
+    country_avg,
+    x='country',
+    y=['temperature_celsius', 'humidity', 'wind_mph', 'air_quality_us-epa-index'],
+    barmode='group',
+    title='Average Metrics by Country',
+    template=theme['plotly_template']
+)
+comp_fig.update_traces(hovertemplate='%{y:.2f}')
+comp_fig.update_layout(
+    paper_bgcolor=theme['background'],
+    plot_bgcolor=theme['background'],
+    font_color=theme['text']
+)
+st.plotly_chart(comp_fig, use_container_width=True)
+
+# ======================================================
+# 3. DISTRIBUTIONS & OUTLIERS
+# ======================================================
+st.subheader("📊 Distributions & Outliers")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    hist_fig = px.histogram(
+        df_filtered,
+        x='temperature_celsius',
+        color='country',
+        nbins=50,
+        title='Temperature Distribution',
+        template=theme['plotly_template']
+    )
+    hist_fig.update_traces(hovertemplate='Temp: %{x:.2f} °C<br>Count: %{y}')
+    hist_fig.update_layout(
+        paper_bgcolor=theme['background'],
+        plot_bgcolor=theme['background'],
+        font_color=theme['text']
+    )
+    st.plotly_chart(hist_fig, use_container_width=True)
+
+with col2:
+    box_fig = px.box(
+        df_filtered,
+        x='country',
+        y='humidity',
+        color='country',
+        title='Humidity Distribution by Country',
+        template=theme['plotly_template']
+    )
+    box_fig.update_traces(hovertemplate='Humidity: %{y:.2f}%')
+    box_fig.update_layout(
+        paper_bgcolor=theme['background'],
+        plot_bgcolor=theme['background'],
+        font_color=theme['text']
+    )
+    st.plotly_chart(box_fig, use_container_width=True)
+
+# ======================================================
+# 4. CORRELATION HEATMAP
+# ======================================================
+st.subheader("🧠 Correlation Heatmap")
+
+num_cols = ['temperature_celsius', 'humidity', 'wind_mph', 'uv_index', 'air_quality_us-epa-index']
+corr = df_filtered[num_cols].corr()
+
+heatmap_fig = go.Figure(data=go.Heatmap(
+    z=corr.values,
+    x=num_cols,
+    y=num_cols,
+    colorscale='Viridis',
+    text=corr.round(2).values,
+    texttemplate="%{text}",
+    hoverongaps=False
+))
+heatmap_fig.update_layout(
+    title="Correlation Between Weather Parameters",
+    paper_bgcolor=theme['background'],
+    plot_bgcolor=theme['background'],
+    font_color=theme['text']
+)
+st.plotly_chart(heatmap_fig, use_container_width=True)
+
+# ======================================================
+# 5. EXTREME EVENTS
+# ======================================================
+st.subheader("🚨 Extreme Weather Events")
+
+col3, col4, col5 = st.columns(3)
+
+with col3:
+    st.markdown("#### 🔥 Top 5 Hottest Locations")
+    top_hot = df_filtered.nlargest(5, 'temperature_celsius')[['country', 'location_name', 'temperature_celsius']]
+    top_hot['temperature_celsius'] = top_hot['temperature_celsius'].round(2)
+    st.dataframe(top_hot, use_container_width=True)
+
+with col4:
+    st.markdown("#### 🧊 Top 5 Coldest Locations")
+    top_cold = df_filtered.nsmallest(5, 'temperature_celsius')[['country', 'location_name', 'temperature_celsius']]
+    top_cold['temperature_celsius'] = top_cold['temperature_celsius'].round(2)
+    st.dataframe(top_cold, use_container_width=True)
+
+with col5:
+    st.markdown("#### 😷 Top 5 Most Polluted Locations")
+    top_polluted = df_filtered.nlargest(5, 'air_quality_us-epa-index')[['country', 'location_name', 'air_quality_us-epa-index']]
+    top_polluted['air_quality_us-epa-index'] = top_polluted['air_quality_us-epa-index'].round(2)
+    st.dataframe(top_polluted, use_container_width=True)
+
+# ======================================================
+# RAW DATA TABLE
+# ======================================================
+with st.expander("📄 View Raw Filtered Data"):
+    st.dataframe(df_filtered, use_container_width=True)
+
