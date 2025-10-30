@@ -180,12 +180,12 @@ st.plotly_chart(map_fig, use_container_width=True)
 # Weather Overview Tabs with Sub-filter and Graph Selection
 # =========================
 #
-#Bar	Clear comparison of averages across countries
+#Bar	Clear comparison of averages across locations
 #Box	Shows spread, outliers, and variability
 #Scatter	Reveals relationships between metrics
 #Line	Tracks changes over time
 
-st.markdown("## 📊 Weather Overview by Selected Countries")
+st.markdown("## 📊 Weather Overview by Selected Locations")
 metric_map = {
     "Temperature": "temperature_celsius",
     "Humidity": "humidity",
@@ -195,27 +195,31 @@ metric_map = {
 graph_options = ["Bar", "Line", "Box", "Scatter"]
 
 tabs = st.tabs(list(metric_map.keys()))
+
 for tab_name, tab in zip(metric_map.keys(), tabs):
     with tab:
-        sub_countries = st.multiselect(
-            f"Filter Countries for {tab_name}",
-            options=selected_countries,
-            default=selected_countries,
-            key=f"sub_{tab_name}"
+        # --- Filter Locations ---
+        sub_locations = st.multiselect(
+            f"Filter Locations for {tab_name}",
+            options=df_filtered['location_name'].unique(),
+            default=df_filtered['location_name'].unique(),
+            key=f"sub_{tab_name}_location"
         )
-        df_tab = df_filtered[df_filtered['country'].isin(sub_countries)]
+        df_tab = df_filtered[df_filtered['location_name'].isin(sub_locations)]
 
-        graph_selected = st.selectbox(f"Select Graph Type for {tab_name}", graph_options, key=tab_name)
+        # --- Select Graph Type ---
+        graph_selected = st.selectbox(f"Select Graph Type for {tab_name}", graph_options, key=f"{tab_name}_graph")
 
         col = metric_map[tab_name]
 
+        # --- Plot Function ---
         def plot_metric(df_plot, col, graph_type):
             if df_plot.empty:
-                st.warning("No data for selected countries")
+                st.warning("No data for selected locations")
                 return None
 
             color_scales = {
-                "temperature_celsius": "icefire",
+                "temperature_celsius": "Reds",
                 "humidity": "Blues",
                 "wind_mph": "Greens",
                 "uv_index": "solar"
@@ -237,67 +241,67 @@ for tab_name, tab in zip(metric_map.keys(), tabs):
             unit = units.get(col, "")
             display_name = display_names.get(col, col)
 
-            # ========================
-            # Line Chart (NEW)
-            # ========================
             if graph_type == "Line":
-                if 'last_updated' not in df_plot.columns:
-                    st.warning("Time column ('last_updated') not found")
-                    return None
-
                 df_plot['last_updated'] = pd.to_datetime(df_plot['last_updated'], errors='coerce')
                 df_plot = df_plot.dropna(subset=['last_updated'])
-
                 fig = px.line(
                     df_plot,
                     x='last_updated',
                     y=col,
-                    color='country',
+                    color='location_name',
                     markers=True,
-                    hover_data=['location_name'],
-                    title=f"{display_name} Trend Over Time"
+                    hover_data=['country'],
+                    title=f"{display_name} Trend Over Time by Location"
                 )
                 fig.update_traces(
-                    hovertemplate="Country: %{customdata[0]}<br>" +
-                                "Date: %{x}<br>" +
-                                f"{display_name}: "+"%{y:.2f} "+unit
+                    hovertemplate="Location: %{customdata[0]}<br>" +
+                                  "Date: %{x}<br>" +
+                                  f"{display_name}: "+"%{y:.2f} "+unit
+                )
+            elif graph_type == "Bar":
+                # Prepare the data
+                df_avg = (
+                    df_plot.groupby(['country', 'location_name'])[col]
+                    .mean()
+                    .reset_index()
                 )
 
-            # ========================
-            # Bar Chart
-            # ========================
-            elif graph_type == "Bar":
+                # Format temperature to two decimal places
+                df_avg[col] = df_avg[col].round(2)
+
+                
+                # Create the bar chart
                 fig = px.bar(
-                    df_plot.groupby('country')[col].mean().reset_index(),
-                    x='country', y=col,
+                    df_avg,
+                    x='location_name',
+                    y=col,
                     color=col,
                     color_continuous_scale=scale,
-                    title=f"Average {display_name} by Country"
+                    title=f"Average {display_name} by Location",
+                    hover_data={
+                        'country': True,
+                        'location_name': True,
+                        col: ':.2f'
+                    }
                 )
 
-            # ========================
-            # Box Chart
-            # ========================
             elif graph_type == "Box":
-                fig = px.box(df_plot, x='country', y=col, color='country',
-                            title=f"{display_name} Distribution by Country")
-
-            # ========================
-            # Scatter Chart
-            # ========================
+                fig = px.box(df_plot, x='location_name', y=col, color='location_name',
+                             title=f"{display_name} Distribution by Location")
             elif graph_type == "Scatter":
                 other_metric = np.random.choice([c for c in metric_map.values() if c != col])
-                fig = px.scatter(df_plot, x=col, y=other_metric, color='country',
-                                hover_data=['location_name'],
-                                title=f"{display_name} vs {other_metric}")
+                fig = px.scatter(df_plot, x=col, y=other_metric, color='location_name',
+                                 hover_data=['country'],
+                                 title=f"{display_name} vs {other_metric} by Location")
 
-
-            fig.update_layout(height=450)
+            fig.update_layout(height=450, xaxis_title="Location")
             return fig
 
         fig = plot_metric(df_tab, col, graph_selected)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
+
+
 
 
 # =========================
