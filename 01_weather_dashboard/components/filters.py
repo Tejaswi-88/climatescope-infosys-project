@@ -67,6 +67,34 @@ def filter_panel(df, default_country="India"):
     wmin, wmax = int(df['wind_mph'].min()), int(df['wind_mph'].max())
     wind_min, wind_max = st.sidebar.slider("🌬️ Wind Speed (mph)", wmin, wmax, (wmin, wmax))
 
+    # --- UV Index Filter ---
+    if "uv_index" in df.columns:
+        uv_min_val, uv_max_val = int(df['uv_index'].min()), int(df['uv_index'].max())
+        uv_min, uv_max = st.sidebar.slider("☀️ UV Index", uv_min_val, uv_max_val, (uv_min_val, uv_max_val))
+    else:
+        uv_min, uv_max = None, None
+
+    # --- Precipitation Filter ---
+    if "precip_mm" in df.columns:
+        precip_min_val, precip_max_val = int(df['precip_mm'].min()), int(df['precip_mm'].max())
+        precip_min, precip_max = st.sidebar.slider("🌧️ Precipitation (mm)", precip_min_val, precip_max_val, (precip_min_val, precip_max_val))
+    else:
+        precip_min, precip_max = None, None
+
+    # --- Visibility Filter ---
+    if "visibility_km" in df.columns:
+        vis_min_val, vis_max_val = int(df['visibility_km'].min()), int(df['visibility_km'].max())
+        visibility_min, visibility_max = st.sidebar.slider("👀 Visibility (km)", vis_min_val, vis_max_val, (vis_min_val, vis_max_val))
+    else:
+        visibility_min, visibility_max = None, None
+
+    # --- Air Quality Index Filter ---
+    if "air_quality_us-epa-index" in df.columns:
+        aqi_min_val, aqi_max_val = int(df['air_quality_us-epa-index'].min()), int(df['air_quality_us-epa-index'].max())
+        air_quality_us_epa_min, air_quality_us_epa_max = st.sidebar.slider("🌫️ Air Quality Index", aqi_min_val, aqi_max_val, (aqi_min_val, aqi_max_val))
+    else:
+        air_quality_us_epa_min, air_quality_us_epa_max = None, None
+
     return {
         "continent": selected_continents,
         "country": selected_countries,
@@ -76,5 +104,13 @@ def filter_panel(df, default_country="India"):
         "humidity_min": humidity_min,
         "humidity_max": humidity_max,
         "wind_min": wind_min,
-        "wind_max": wind_max
+        "wind_max": wind_max,
+        "uv_min": uv_min,
+        "uv_max": uv_max,
+        "precip_min": precip_min,
+        "precip_max": precip_max,
+        "visibility_min": visibility_min,
+        "visibility_max": visibility_max,
+        "air_quality_us-epa_min": air_quality_us_epa_min,
+        "air_quality_us-epa_max": air_quality_us_epa_max
     }
