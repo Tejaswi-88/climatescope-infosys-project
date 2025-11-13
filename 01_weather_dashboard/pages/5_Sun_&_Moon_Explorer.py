@@ -27,6 +27,19 @@ selected_continents = st.session_state.get("continent", [])
 selected_countries = st.session_state.get("country", [])
 selected_locations = st.session_state.get("location", [])
 
+
+if not selected_locations:
+    st.warning("Please select at least one location.")
+    st.stop()
+
+loc_data = df_filtered[df_filtered["location_name"].isin(selected_locations)]
+
+if loc_data.empty:
+    st.warning(f"No weather data available for {', '.join(selected_locations)}.")
+    st.stop()
+
+
+
 # ===============================
 # 🎨 Styled Sidebar Navigation
 # ===============================
@@ -200,29 +213,39 @@ for idx, row in unique_locations.iterrows():
     if cols[6].button("Select", key=f"select_{idx}"):
         st.session_state.selected_row_idx = idx
 
-# Check selection
-if st.session_state.selected_row_idx is None:
+# Check if a row has been selected and index is valid
+if (
+    "selected_row_idx" not in st.session_state
+    or st.session_state.selected_row_idx is None
+    or st.session_state.selected_row_idx >= len(unique_locations)
+    or st.session_state.selected_row_idx < 0
+):
     st.info("Select a location row to see Sun & Moon details.")
     st.stop()
 
+# ✅ Safe access to the selected row
 selected_row = unique_locations.iloc[st.session_state.selected_row_idx]
-st.write(f"Selected location: {selected_row['location_name']}")
 
+# Display selected location
+st.write(f"🌍 **Selected Location:** {selected_row['location_name']}")
 
-# Close table HTML
+# Close the table HTML
 st.markdown("</table>", unsafe_allow_html=True)
 
-# Handle row selection
-if st.session_state.selected_row_idx is None:
-    st.info("Select a location row to see Sun & Moon details.")
-    st.stop()
-
-selected_row = unique_locations.iloc[st.session_state.selected_row_idx]
+# -------------------------------
+# 📍 Extract Selected Location Info
+# -------------------------------
 selected_location = selected_row["location_name"]
 selected_lat = selected_row["latitude"]
 selected_lon = selected_row["longitude"]
-tz = df_filtered[df_filtered["location_name"] == selected_location]["timezone"].iloc[0] if "timezone" in df_filtered.columns else "UTC"
 
+
+if "timezone" in df_filtered.columns and not df_filtered[df_filtered["location_name"] == selected_location].empty:
+    tz = df_filtered[df_filtered["location_name"] == selected_location]["timezone"].iloc[0]
+else:
+    tz = "UTC"
+
+loc_data = df_filtered[df_filtered["location_name"] == selected_location]
 # Display selected location info
 st.markdown(f"""
 <div style="
@@ -245,56 +268,76 @@ st.markdown(f"""
 
 
 # -------------------------------
-# 🗓️ Available Dates Fix
+# 🗓️ Available Dates & Times (Enhanced)
 # -------------------------------
-# Filter df_filtered for the selected location
-loc_data = df_filtered[df_filtered["location_name"] == selected_location].copy()
 
-if loc_data.empty:
-    st.warning("No data found for the selected location.")
-    st.stop()
-
-# Convert datetime column
+# Detect proper datetime column
 if "last_updated_dt" in loc_data.columns:
-    loc_data["datetime"] = pd.to_datetime(loc_data["last_updated_dt"], errors="coerce")
+    datetime_col = "last_updated_dt"
 elif "last_updated" in loc_data.columns:
-    loc_data["datetime"] = pd.to_datetime(loc_data["last_updated"], errors="coerce")
+    datetime_col = "last_updated"
 else:
-    st.error("❌ No datetime column found in the dataset.")
+    st.error("❌ No valid datetime column found in dataset.")
     st.stop()
 
+# Convert safely
+loc_data["datetime"] = pd.to_datetime(loc_data[datetime_col], errors="coerce")
 loc_data = loc_data.dropna(subset=["datetime"])
-available_dates = loc_data["datetime"].dt.date.dropna().unique()
 
-if len(available_dates) == 0:
-    st.warning("No valid date entries found for this location.")
+# Available Dates
+available_dates = sorted(loc_data["datetime"].dt.date.dropna().unique().tolist())
+
+if not available_dates:
+    st.warning("⚠️ No available dates for this location.")
     st.stop()
 
-# Date selection
 selected_date = st.date_input(
-    "Select a date",
+    "📅 Select a Date",
     value=available_dates[0],
     min_value=min(available_dates),
     max_value=max(available_dates),
 )
 
+# Filter day data
 loc_day_data = loc_data[loc_data["datetime"].dt.date == selected_date]
-times = sorted(loc_day_data["datetime"].dt.time.unique())
+if loc_day_data.empty:
+    st.warning("⚠️ No data available for the selected date.")
+    st.stop()
+
+# Extract times
+times = sorted(loc_day_data["datetime"].dt.time.dropna().unique().tolist())
 
 # Time selection
-st.markdown("### 🕓 Select a Time")
+st.subheader("🕓 Select a Time")
 cols = st.columns(6)
 selected_time = None
 for i, t in enumerate(times):
     if cols[i % 6].button(str(t)):
         selected_time = t
+        st.session_state["selected_time"] = t  # persist selection
+
+# Restore previously selected time
+if not selected_time and "selected_time" in st.session_state:
+    selected_time = st.session_state["selected_time"]
 
 if not selected_time:
     st.info("Please select a time slot to visualize Sun & Moon details.")
     st.stop()
 
+# Combine selection
 selected_dt = datetime.combine(selected_date, selected_time)
-row = loc_day_data[pd.to_datetime(loc_day_data["datetime"]) == pd.to_datetime(selected_dt)].iloc[0]
+
+# Get row for selected datetime
+row = loc_day_data[
+    pd.to_datetime(loc_day_data["datetime"]) == pd.to_datetime(selected_dt)
+]
+
+if row.empty:
+    st.warning("selected the time slot")
+    st.stop()
+
+row = row.iloc[0]
+
 
 # -------------------------------
 # 🌤️ Weather Snapshot + Sun/Moon
@@ -313,7 +356,7 @@ with col1:
     st.write(f"**Last Updated:** {row.get('last_updated','—')}")
 
 with col2:
-    st.header("☀️🌙 Sun & Moon Visual")
+    st.header("🌙 Moon Illumination (%)")
     sunrise = row.get("sunrise", "—")
     sunset = row.get("sunset", "—")
     moonrise = row.get("moonrise", "—")

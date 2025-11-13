@@ -164,8 +164,8 @@ df_filtered = df[
     (df['humidity'] >= humidity_range[0]) & (df['humidity'] <= humidity_range[1])
 ]
 
-df_filtered['latitude'] = pd.to_numeric(df_filtered['latitude'], errors='coerce')
-df_filtered['longitude'] = pd.to_numeric(df_filtered['longitude'], errors='coerce')
+df_filtered.loc[:, 'latitude'] = pd.to_numeric(df_filtered['latitude'], errors='coerce')
+df_filtered.loc[:, 'longitude'] = pd.to_numeric(df_filtered['longitude'], errors='coerce')
 df_filtered = df_filtered.dropna(subset=['latitude', 'longitude'])
 
 if df_filtered.empty:
