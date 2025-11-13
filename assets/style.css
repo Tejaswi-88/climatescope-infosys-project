@@ -1,0 +1,13 @@
+/* Force vertical scrolling for the main app container */
+div[data-testid="stAppViewContainer"] {
+    overflow-y: auto !important;
+    height: 100vh;
+}
+
+/* Optional: fix sidebar header margin */
+div[data-testid="stSidebar"] h2 {
+    margin-top: -30px;
+    color: #2E86C1;
+    font-size: 1.8em;
+}
+
